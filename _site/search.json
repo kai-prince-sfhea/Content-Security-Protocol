@@ -1,0 +1,9 @@
+[
+  {
+    "objectID": "template.html",
+    "href": "template.html",
+    "title": "Introduction",
+    "section": "",
+    "text": "Introduction\n\nDefinition 1 (associativity) For all \\(a,b,{c}\\) in \\(S\\), one has \\((a \\cdot b) \\cdot c=a \\cdot (b \\cdot c)}\\).\n\n\nDefinition 2 (identity) There exists an element \\(e\\) in \\(S\\) Such that, for every \\(a\\) in \\(S\\), one has \\(e \\cdot a={a}\\) and \\(a \\cdot e={a}\\). Such an element is unique and is called the identity element.\n\n\nDefinition 3 (unique inverse) For each \\(a\\) in \\(S\\), there exists an element \\(b\\) in \\(S\\) Such that \\(a \\cdot b=e\\) and \\(b \\cdot a=e\\), where \\(e\\) is the identity element.\nFor each \\(a\\), the element \\(b\\) is unique and is called the inverse of \\(b\\) and is denoted \\(a^{-1}\\).\n\n\n\nMore Information\nYou can learn more about controlling the appearance of HTML output here: https://quarto.org/docs/output-formats/html-basics.html"
+  }
+]

@@ -1,0 +1,6 @@
+project:
+  title: "CSP Template"
+  type: website
+
+format:
+  html: default

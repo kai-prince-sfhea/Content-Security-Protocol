@@ -1,0 +1,363 @@
+{
+  "": {
+    "changed": {
+      "html": {
+        "index.html": true,
+        "template.html": true
+      }
+    },
+    "files": {
+      "index.html": true,
+      "template.html": true
+    },
+    "hashes": {
+      "index.html": "Lgy+KapKuj5j5Ay3vn9Q7yGkbZkgHDdRdq0jdmRqWmM=",
+      "template.html": "BYHWxzWGejqW+3wuKVp4m3KeNoFrcP1BvssIoI32Wzg="
+    },
+    "report": {
+      "index.html": {
+        "baseline": {
+          "base-uri": "'self'",
+          "connect-src": "'self'",
+          "default-src": "'self'",
+          "font-src": "'self'",
+          "form-action": "'self'",
+          "frame-ancestors": "'self'",
+          "frame-src": "'none'",
+          "img-src": "'self' data:",
+          "manifest-src": "'none'",
+          "media-src": "'none'",
+          "object-src": "'none'",
+          "script-src": "'self' nonce",
+          "style-src": "'self' nonce",
+          "worker-src": "'none'"
+        },
+        "breakdown": {
+          "base-uri-missing-self": 0,
+          "default-src-missing-self": 0,
+          "form-action-missing-self": 0,
+          "no-upgrade-insecure-requests": 0,
+          "object-src-not-none": 0,
+          "script-src-missing-self": 0,
+          "unsafe-eval": 0,
+          "unsafe-hashes": 0,
+          "unsafe-inline": 0
+        },
+        "directives": {
+          "base-uri": [
+            "'self'"
+          ],
+          "block-all-mixed-content": [
+            "(flag)"
+          ],
+          "connect-src": [
+            "'self'"
+          ],
+          "default-src": [
+            "'self'"
+          ],
+          "font-src": [
+            "'self'",
+            "https://cdn.jsdelivr.net",
+            "https://fonts.gstatic.com",
+            "data:"
+          ],
+          "form-action": [
+            "'self'"
+          ],
+          "frame-ancestors": [
+            "'self'"
+          ],
+          "frame-src": [
+            "'none'"
+          ],
+          "img-src": [
+            "'self'",
+            "data:"
+          ],
+          "manifest-src": [
+            "'none'"
+          ],
+          "media-src": [
+            "'none'"
+          ],
+          "object-src": [
+            "'none'"
+          ],
+          "script-src": [
+            "'self'",
+            "https://cdn.jsdelivr.net"
+          ],
+          "style-src": [
+            "'self'",
+            "https://fonts.googleapis.com"
+          ],
+          "upgrade-insecure-requests": [
+            "(flag)"
+          ],
+          "worker-src": [
+            "'none'"
+          ]
+        },
+        "hash_only": false,
+        "header": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; block-all-mixed-content; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; upgrade-insecure-requests; worker-src 'none'",
+        "score": 100
+      },
+      "template.html": {
+        "baseline": {
+          "base-uri": "'self'",
+          "connect-src": "'self'",
+          "default-src": "'self'",
+          "font-src": "'self'",
+          "form-action": "'self'",
+          "frame-ancestors": "'self'",
+          "frame-src": "'none'",
+          "img-src": "'self' data:",
+          "manifest-src": "'none'",
+          "media-src": "'none'",
+          "object-src": "'none'",
+          "script-src": "'self' nonce",
+          "style-src": "'self' nonce",
+          "worker-src": "'none'"
+        },
+        "breakdown": {
+          "base-uri-missing-self": 0,
+          "default-src-missing-self": 0,
+          "form-action-missing-self": 0,
+          "no-upgrade-insecure-requests": 0,
+          "object-src-not-none": 0,
+          "script-src-missing-self": 0,
+          "unsafe-eval": 0,
+          "unsafe-hashes": 0,
+          "unsafe-inline": -12
+        },
+        "directives": {
+          "base-uri": [
+            "'self'"
+          ],
+          "block-all-mixed-content": [
+            "(flag)"
+          ],
+          "connect-src": [
+            "'self'"
+          ],
+          "default-src": [
+            "'self'"
+          ],
+          "font-src": [
+            "'self'",
+            "https://cdn.jsdelivr.net",
+            "https://fonts.gstatic.com",
+            "data:"
+          ],
+          "form-action": [
+            "'self'"
+          ],
+          "frame-ancestors": [
+            "'self'"
+          ],
+          "frame-src": [
+            "'none'"
+          ],
+          "img-src": [
+            "'self'",
+            "data:"
+          ],
+          "manifest-src": [
+            "'none'"
+          ],
+          "media-src": [
+            "'none'"
+          ],
+          "object-src": [
+            "'none'"
+          ],
+          "script-src": [
+            "'self'",
+            "'nonce-0m6SoLqYzeJ8teML'",
+            "'nonce-ukRPdHjpvyJ5RlJX'",
+            "'nonce-jaL1u6hFMXjRiDnV'",
+            "https://cdn.jsdelivr.net",
+            "https://cdnjs.cloudflare.com"
+          ],
+          "style-src": [
+            "'self'",
+            "'nonce-kZ1zi8MEbxJOPFvI'",
+            "https://fonts.googleapis.com"
+          ],
+          "style-src-attr": [
+            "'self'"
+          ],
+          "upgrade-insecure-requests": [
+            "(flag)"
+          ],
+          "worker-src": [
+            "'none'"
+          ]
+        },
+        "hash_only": false,
+        "header": "default-src 'self'; script-src 'self' 'nonce-0m6SoLqYzeJ8teML' 'nonce-ukRPdHjpvyJ5RlJX' 'nonce-jaL1u6hFMXjRiDnV'; style-src 'self' 'nonce-kZ1zi8MEbxJOPFvI'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; block-all-mixed-content; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; style-src-attr 'self' 'unsafe-inline'; upgrade-insecure-requests; worker-src 'none'",
+        "score": 88
+      }
+    }
+  },
+  "csp_default": {
+    "baseline": {
+      "base-uri": "'self'",
+      "connect-src": "'self'",
+      "default-src": "'self'",
+      "font-src": "'self'",
+      "form-action": "'self'",
+      "frame-ancestors": "'self'",
+      "frame-src": "'none'",
+      "img-src": "'self' data:",
+      "manifest-src": "'none'",
+      "media-src": "'none'",
+      "object-src": "'none'",
+      "script-src": "'self' nonce",
+      "style-src": "'self' nonce",
+      "worker-src": "'none'"
+    },
+    "site": {
+      "intersection": {
+        "base-uri": [
+          "'self'"
+        ],
+        "block-all-mixed-content": [
+          "(flag)"
+        ],
+        "connect-src": [
+          "'self'"
+        ],
+        "default-src": [
+          "'self'"
+        ],
+        "font-src": [
+          "'self'",
+          "data:",
+          "https://cdn.jsdelivr.net",
+          "https://fonts.gstatic.com"
+        ],
+        "form-action": [
+          "'self'"
+        ],
+        "frame-ancestors": [
+          "'self'"
+        ],
+        "frame-src": [
+          "'none'"
+        ],
+        "img-src": [
+          "'self'",
+          "data:"
+        ],
+        "manifest-src": [
+          "'none'"
+        ],
+        "media-src": [
+          "'none'"
+        ],
+        "object-src": [
+          "'none'"
+        ],
+        "script-src": [
+          "'self'",
+          "https://cdn.jsdelivr.net"
+        ],
+        "style-src": [
+          "'self'",
+          "https://fonts.googleapis.com"
+        ],
+        "upgrade-insecure-requests": [
+          "(flag)"
+        ],
+        "worker-src": [
+          "'none'"
+        ]
+      },
+      "recommended_header": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; block-all-mixed-content; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; upgrade-insecure-requests; worker-src 'none'",
+      "sri": {
+        "local_assets": 0,
+        "remote_candidates": {
+          
+        }
+      },
+      "union": {
+        "base-uri": [
+          "'self'"
+        ],
+        "block-all-mixed-content": [
+          "(flag)"
+        ],
+        "connect-src": [
+          "'self'"
+        ],
+        "default-src": [
+          "'self'"
+        ],
+        "font-src": [
+          "'self'",
+          "data:",
+          "https://cdn.jsdelivr.net",
+          "https://fonts.gstatic.com"
+        ],
+        "form-action": [
+          "'self'"
+        ],
+        "frame-ancestors": [
+          "'self'"
+        ],
+        "frame-src": [
+          "'none'"
+        ],
+        "img-src": [
+          "'self'",
+          "data:"
+        ],
+        "manifest-src": [
+          "'none'"
+        ],
+        "media-src": [
+          "'none'"
+        ],
+        "object-src": [
+          "'none'"
+        ],
+        "script-src": [
+          "'nonce'",
+          "'self'",
+          "https://cdn.jsdelivr.net",
+          "https://cdnjs.cloudflare.com"
+        ],
+        "style-src": [
+          "'nonce'",
+          "'self'",
+          "https://fonts.googleapis.com"
+        ],
+        "style-src-attr": [
+          "'self'",
+          "'unsafe-inline'"
+        ],
+        "upgrade-insecure-requests": [
+          "(flag)"
+        ],
+        "worker-src": [
+          "'none'"
+        ]
+      },
+      "warnings": {
+        
+      },
+      "worst": [
+        {
+          "file": "template.html",
+          "score": 88
+        },
+        {
+          "file": "index.html",
+          "score": 100
+        }
+      ]
+    }
+  }
+}
