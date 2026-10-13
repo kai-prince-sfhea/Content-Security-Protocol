@@ -1,0 +1,12 @@
+Content Security Protocol — experimental Quarto extension
+Copyright 2026 Kai Prince.
+
+OpenAI Codex materially assisted the redesign, implementation, synthetic fixtures,
+tests and documentation under Kai Prince's direction. Automated verification is
+not independent human acceptance, security certification or University approval.
+
+The installed vendor/html-parser.mjs contains parse5 8.0.0 (MIT, Ivan Nikulin)
+and entities 6.0.1 (BSD-2-Clause, Felix Boehm). Their original licence texts are
+installed beside the bundle and remain applicable to those components.
+The project Apache-2.0 licence does not relicense third-party dependencies or
+authorize publishing audited site content or private reports.

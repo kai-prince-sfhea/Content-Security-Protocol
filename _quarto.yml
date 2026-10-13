@@ -1,6 +1,11 @@
 project:
-  title: "CSP Template"
+  title: "Content Security Protocol example"
   type: website
+  render:
+    - example.qmd
+
+content-security-protocol:
+  enabled: true
 
 format:
   html: default

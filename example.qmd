@@ -1,0 +1,17 @@
+---
+title: Synthetic publication audit example
+---
+
+## Native reading
+
+This fictional page exercises ordinary HTML, a [native destination](#details),
+and mathematics $x^2 + y^2 = z^2$. The audit observes final bytes and leaves them
+unchanged. No policy is delivered to the browser.
+
+::: {.callout-note}
+Inline script/style hashes are candidates for review, not automatic permission.
+:::
+
+## Details {#details}
+
+Read the private build report separately from this public page.

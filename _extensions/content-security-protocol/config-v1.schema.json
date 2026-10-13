@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:quarto:content-security-protocol:config:v1",
+  "title": "Content Security Protocol project options",
+  "description": "Structural schema. Runtime additionally validates canonical origins, digest lengths, forbidden path confinement and none-only sources. Disabled mappings deliberately bypass other options.",
+  "anyOf": [
+    {
+      "const": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "const": false
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "const": true
+        },
+        "mode": {
+          "const": "audit"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "base-uri": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  }
+                ]
+              }
+            },
+            "object-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  }
+                ]
+              }
+            },
+            "frame-ancestors": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  }
+                ]
+              }
+            },
+            "form-action": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  }
+                ]
+              }
+            },
+            "script-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^'sha(256|384|512)-[A-Za-z0-9+/]+={0,2}'$"
+                  }
+                ]
+              }
+            },
+            "style-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^'sha(256|384|512)-[A-Za-z0-9+/]+={0,2}'$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "img-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "font-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "media-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "connect-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "frame-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "worker-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            },
+            "manifest-src": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "'self'",
+                      "'none'"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s;\\r\\n]+$"
+                  },
+                  {
+                    "enum": [
+                      "data:",
+                      "blob:"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "fail-on": {
+          "enum": [
+            "none",
+            "known",
+            "any"
+          ]
+        },
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "forbidden-markers": {
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f]+$"
+              }
+            },
+            "forbidden-paths": {
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f]+$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

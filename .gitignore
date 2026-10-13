@@ -4,3 +4,9 @@
 /.luarc.json
 
 /.quarto/
+/_site/
+/CSP.json
+/node_modules/
+/.env
+/.env.*
+/private/
