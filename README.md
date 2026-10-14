@@ -42,8 +42,11 @@ root-level example files. This follows Quarto's
 ### Installation namespaces
 
 The repository name selects the download; the lowercase installed extension ID
-selects the command path and removal target. Confirm the installed version and
-namespace using `quarto list extensions` before following any update instructions.
+selects the command path and removal target. Confirm the installed namespace
+using `quarto list extensions` before following any update instructions. Its
+version column is native CLI presentation, not exact prerelease identity. For
+the exact version, inspect the installed `_extension.yml` at the namespace below;
+the audit's runtime identity additionally binds the installed runtime files.
 
 | Installation | Installed extension ID | CLI path |
 | --- | --- | --- |

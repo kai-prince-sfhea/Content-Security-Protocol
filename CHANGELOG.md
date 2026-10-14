@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.0.4 — local correctness and performance refinement
+## Unreleased documentation review — 14 October 2026
+
+- Distinguish native CLI version presentation from the exact installed manifest
+  version and audit runtime identity. Runtime, metadata and stored contracts are
+  unchanged; no new supported-release or accessibility claim is made.
+
+## 0.0.4 — experimental source update, 13 October 2026
 
 - Reject publication paths with empty components; preserve the HTML limit when
   an internal caller overrides only some inventory limits.
