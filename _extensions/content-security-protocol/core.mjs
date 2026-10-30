@@ -2,7 +2,7 @@
 import {parse} from './vendor/html-parser.mjs';
 import {validateInteractionProfiles} from './interaction-profile.mjs';
 import {WASM_TOKEN,CAPABILITY_LIMITS,inspectModelPackDeclaration} from './capabilities.mjs';
-export const VERSION='0.0.7';
+export const VERSION='0.0.8';
 
 export const DEFAULT_POLICY=Object.freeze({
   'default-src':["'none'"], 'base-uri':["'none'"], 'object-src':["'none'"],

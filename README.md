@@ -1,6 +1,6 @@
 # Content Security Protocol
 
-Experimental **0.0.7**. Publication assurance for Quarto:
+Experimental **0.0.8**. Publication assurance for Quarto:
 a read-only audit, explicit host-header preparation and optional accessibility
 checking. It inventories final files, proposes static inline hashes
 and local SRI values, and compares discovered resource origins with an explicit
@@ -465,8 +465,16 @@ execution; the command cannot turn stale results into a current receipt.
 Each declared page includes an initial check. Every named state starts from a
 fresh isolated browser context; its actions are ordered within that state.
 States do not depend on earlier named states. The browser receives the unchanged
-private output copy. Light/dark `colorSchemes` emulate the media preference;
-they do not operate or certify a site's native theme switcher. Main-document
+private output copy. Light/dark `colorSchemes` request the OS media preference.
+Before actions, the driver reads native Quarto body/stylesheet modes and uses
+Quarto's own theme-toggle hook when both declared modes are available. Enabled
+alternate stylesheets take precedence over the native primary layer; no colour
+threshold or injected theme CSS is used. The receipt records the requested
+preference and actual mode before and after actions. An action that changes the
+theme keeps its resulting mode. Single-theme, non-Quarto and unknown pages are
+identified explicitly; a dark preference is not evidence that a fixed light
+page became dark. Unresolved native modes or incomplete bounded style/font/frame
+settling leave a cell incomplete while preserving its raw axe results. Main-document
 selectors are test data, never author JavaScript. Actions require one suitable
 visible/enabled target; missing, ambiguous, covered or unavailable targets cannot
 be counted as a completed state. Remote requests, downloads, frame limitations
@@ -481,6 +489,7 @@ claim an operating-system network sandbox.
 | `states[].ready` | Optional `{selector, state: visible\|hidden}`; a condition, not an arbitrary sleep/script |
 | `viewports` | `[{width: 1440, height: 900}, {width: 320, height: 568}]`; up to 4 unique integer sizes, width 240–4096 / height 200–4096 |
 | `colorSchemes` | `[light, dark]`; unique subset of these two preferences |
+| `layoutObservations` | Omitted/`false`; `true` adds bounded geometry observations before and after actions |
 | `timeoutMs`, `totalTimeoutMs`, `settleMs` | 30000 / 600000 / 100; bounded to 1000–30000 / up to 3600000 / 0–10000 respectively; total must cover one cell timeout |
 
 There are at most eight profiles and 512 planned page/state/viewport/scheme cells
@@ -490,6 +499,15 @@ values up to 2048 bytes. Keys are `Enter`, `Space`, `Tab`, `Escape`, the four
 `Arrow…` keys, `Home`, `End`, `PageUp`, `PageDown`; combinations/scripts are not
 supported. Fill/select operations use an instrumented native control path;
 they do not prove physical typing or assistive-technology behaviour.
+
+Optional layout observations record document overflow and inspect at most 2,000
+main-document elements, retaining at most 16 geometry examples in the private
+cell artifact. Summary counts contain no page text or selectors. Frames and
+shadow roots are outside this geometry traversal. Overflow at a tested width is
+an observation, not an automatic WCAG failure; tables, code and other content
+that needs two dimensions require contextual review. These observations do not
+suppress or reclassify any axe finding. Theme/style/font settling is bounded to
+1.5 seconds per observation within the existing cell and total deadlines.
 
 The private receipt distinguishes planned/completed/unavailable states and
 reported violations, incomplete checks, passes and inapplicable rules. Full

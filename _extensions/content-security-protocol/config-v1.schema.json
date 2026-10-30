@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:quarto:content-security-protocol:config:v1",
+  "$comment": "Generated for Content Security Protocol 0.0.8",
   "title": "Content Security Protocol project options",
   "description": "Structural schema. Runtime additionally validates canonical origins, digest lengths, forbidden path confinement and none-only sources. Disabled mappings deliberately bypass other options. Interaction profiles are declarations only. Runtime also checks unique profile/page/state IDs, implicit-initial cell budgets, UTF-8 byte limits and contained paths; no browser runs during rendering.",
   "anyOf": [
@@ -653,6 +654,9 @@
                     "dark"
                   ]
                 }
+              },
+              "layoutObservations": {
+                "type": "boolean"
               },
               "timeoutMs": {
                 "type": "integer",

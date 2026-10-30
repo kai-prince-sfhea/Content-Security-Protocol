@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.8 — observed native themes and optional layout geometry — 30 October 2026
+
+- Reconcile native Quarto light/dark modes through its own toggle hook before
+  declared actions, retaining layered stylesheet semantics and recording the
+  final action-selected mode. Fixed, unknown and non-Quarto outcomes stay explicit.
+- Add bounded opt-in `layoutObservations` without changing absent/default profile
+  identity. Geometry counts are separate from WCAG findings and do not decide
+  two-dimensional-content exceptions. Preserve raw axe arrays and execution,
+  network, result-size and time restrictions; ordinary renders run no browser.
+
 ## 0.0.7 — explicit static-host header selection — 26 October 2026
 
 - Add the explicitly selected `cloudflare-pages` header adapter with one uniform
