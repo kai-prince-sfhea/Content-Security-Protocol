@@ -3,6 +3,7 @@ import {lstat,mkdir,writeFile,rename,unlink,realpath} from 'node:fs/promises';
 import {join,relative,resolve,isAbsolute,sep} from 'node:path';
 import {configuration,serializePolicy,fileDigest,fail} from './core.mjs';
 import {auditOutput} from './audit.mjs';
+import {CAPABILITY_REVIEW_CODES} from './capabilities.mjs';
 
 export const HEADER_LIMITS=Object.freeze({files:5000,pathBytes:1024,policyBytes:8192,artifactBytes:2*1024*1024});
 // Acknowledgement is permission to proceed with an explicitly named uncertainty,
@@ -12,7 +13,7 @@ export const REVIEWABLE_CODES=Object.freeze([
   'external-or-special-resource','foreign-content-unassessed','form-submission-unassessed',
   'frame-content-unassessed','hyperlink-ping-unassessed','inert-template-content','module-dependencies-unassessed',
   'noscript-content-unassessed',
-  'resource-hint-unassessed','responsive-sources-unassessed','script-behavior-unassessed','script-type-unassessed'
+  'resource-hint-unassessed','responsive-sources-unassessed','script-behavior-unassessed','script-type-unassessed',...CAPABILITY_REVIEW_CODES
 ]);
 const reviewable=new Set(REVIEWABLE_CODES),hex=/^[a-f0-9]{64}$/u;
 const knownCodes=new Set([...REVIEWABLE_CODES,'html-parse-error','inline-event-handler','inline-style-attribute',
@@ -24,7 +25,7 @@ const plain=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)&
 const size=value=>new TextEncoder().encode(value).length;
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function options(value){
-  if(!plain(value)||Object.keys(value).some(k=>!['adapter','mode','review'].includes(k))||value.adapter!=='netlify'||!['report-only','enforce'].includes(value.mode))fail('headers options','use adapter netlify and mode report-only or enforce');
+  if(!plain(value)||Object.keys(value).some(k=>!['adapter','mode','review'].includes(k))||!['netlify','cloudflare-pages'].includes(value.adapter)||!['report-only','enforce'].includes(value.mode))fail('headers options','use adapter netlify or cloudflare-pages and mode report-only or enforce');
   let review=null;
   if(value.review!==undefined){
     const r=value.review;
@@ -72,7 +73,7 @@ function routesFor(files){
 }
 /** Pure candidate generation. Does not verify filesystem freshness or deliver headers. */
 export function generateHeaders(report,value){
-  const selected=options(value),{files,policy}=validateReport(report),routes=routesFor(files);
+  const selected=options(value),{files,policy}=validateReport(report),routes=selected.adapter==='cloudflare-pages'?[{route:'/*',path:null}]:routesFor(files);
   if(selected.review&&selected.review.inventoryDigest!==report.inventoryDigest)fail('headers review','the acknowledgement must bind this exact inventory digest');
   const codes=[...new Set([...report.findings,...report.pages.flatMap(p=>p.findings)].map(f=>f.code))].sort();
   if(selected.mode==='enforce'){
@@ -84,23 +85,26 @@ export function generateHeaders(report,value){
     if(codes.some(c=>!approved.has(c)))fail('headers enforcement','acknowledge each documented uncertainty against the exact inventory digest, or use report-only');
   }
   const header=selected.mode==='enforce'?'Content-Security-Policy':'Content-Security-Policy-Report-Only';
+  if(selected.adapter==='cloudflare-pages'&&size('  '+header+': '+policy)>2000)fail('headers limits','Cloudflare Pages permits at most 2000 characters per complete header line; use a smaller explicitly reviewed policy or a different host adapter');
   const text='# Content-Security-Protocol: candidate only; headers are not delivered by this file in private state.\n'+
     '# Inventory SHA-256: '+report.inventoryDigest+'\n'+
     '# Review delivered headers, routing, native controls and accessibility before deployment.\n'+
     routes.map(({route})=>route+'\n  '+header+': '+policy+'\n').join('\n');
   if(size(text)>HEADER_LIMITS.artifactBytes)fail('headers limits','reduce the route inventory or use a separately reviewed adapter');
-  return {schema:'content-security-protocol-headers/v1',adapter:'netlify',mode:selected.mode,header,
+  return {schema:'content-security-protocol-headers/v1',adapter:selected.adapter,mode:selected.mode,header,
     inventoryDigest:report.inventoryDigest,declaredPolicy:policy,routes,text,
+    ...(selected.adapter==='cloudflare-pages'?{routeScope:'all-static-response-paths',hostLimits:{rules:100,lineCharacters:2000},qualification:'One uniform policy covers static paths, including fallback paths. It does not cover Pages Functions or Workers; actual hosted delivery remains unverified.'}:{}),
     review:selected.review,findingsCodes:codes,headerOnlyControls:['frame-ancestors',...(selected.mode==='report-only'?['report-only delivery']:[])],
     verifiedInventory:false,delivered:false,deployed:false,
-    limitations:['Static origin-backed routes only; proxies, functions, rewrites and custom 404 fallback are unsupported.',
+    limitations:[selected.adapter==='cloudflare-pages'?'Static asset responses only, including native alias and fallback paths under the uniform rule; Pages Functions, Workers and authored redirect/rewrite configuration are unsupported.':'Static origin-backed routes only; proxies, functions, rewrites and custom 404 fallback are unsupported.',
       'Existing host UI or inherited configuration is not inspected; actual delivered headers remain unverified.',
       'Report-only does not block content and no report endpoint or external report collection is installed.',
       'An uncertainty acknowledgement does not prove runtime behavior, security or accessibility.']};
 }
 async function absent(path){try{await lstat(path);return false;}catch(e){if(e.code==='ENOENT')return true;throw e;}}
-async function noConflicts(root,output){
+async function noConflicts(root,output,adapter){
   try{if((await lstat(join(root,'netlify'))).isSymbolicLink())fail('headers conflict','linked host configuration paths require a separately reviewed manual integration');}catch(e){if(e.code!=='ENOENT')throw e;}
+  if(adapter==='cloudflare-pages')for(const base of [root,output])for(const name of ['functions','_worker.js','_routes.json','wrangler.toml','wrangler.json','wrangler.jsonc'])if(!await absent(join(base,name)))fail('headers conflict','existing Pages Functions, Worker, routing or Wrangler configuration requires a separately reviewed manual integration');
   for(const path of new Set([join(root,'_headers'),join(root,'_redirects'),join(root,'netlify.toml'),join(output,'_headers'),join(output,'_redirects'),join(output,'netlify.toml'),join(root,'netlify','functions'),join(root,'netlify','edge-functions')]))if(!await absent(path))fail('headers conflict','existing host headers, redirects, configuration or functions need a separately reviewed manual integration');
 }
 async function privateDirectory(root){
@@ -116,8 +120,8 @@ async function prepare(projectRoot,outputDir,report,value){
   const selected=options(value),root=await realpath(projectRoot),output=resolve(root,outputDir);
   const rel=relative(root,output);if(!rel||isAbsolute(rel)||rel==='..'||rel.startsWith('..'+sep))fail('headers output','use a separate final-output directory within the project');
   validateReport(report);
-  const fresh=await auditOutput(root,output,{enabled:true,policy:report.declaredPolicy.directives});
-  await noConflicts(root,output);
+  const fresh=await auditOutput(root,output,{enabled:true,policy:report.declaredPolicy.directives,'prepared-model-packs':report.scope?.preparedModelPacks??[]});
+  await noConflicts(root,output,selected.adapter);
   if(!same(fresh.files,report.files)||fresh.inventoryDigest!==report.inventoryDigest||fresh.declaredPolicy.text!==report.declaredPolicy.text)fail('headers freshness','output differs from the audit; render and audit again before preparing headers');
   // Fresh parser assessments prevent edits from erasing newly discovered violations.
   // Preserve original findings too: redacted forbidden markers and source provenance
@@ -125,11 +129,11 @@ async function prepare(projectRoot,outputDir,report,value){
   // verifies authority/currentness of the original report against its saved binding.
   const candidateReport={...fresh,findings:[...fresh.findings,...report.findings,...report.pages.flatMap(p=>p.findings)]};
   const artifact=generateHeaders(candidateReport,selected.review?selected:{adapter:selected.adapter,mode:selected.mode});
-  const dir=await privateDirectory(root),destination=join(dir,'headers-netlify.txt');
+  const dir=await privateDirectory(root),artifactName='headers-'+selected.adapter+'.txt',destination=join(dir,artifactName);
   try{const state=await lstat(destination);if(state.isSymbolicLink()||!state.isFile())fail('headers private path','linked or non-file destinations are unsupported');}catch(e){if(e.code!=='ENOENT')throw e;}
-  const temporary=join(dir,'.headers-netlify.'+crypto.randomUUID()+'.tmp');
+  const temporary=join(dir,'.headers-'+selected.adapter+'.'+crypto.randomUUID()+'.tmp');
   try{await writeFile(temporary,artifact.text,{flag:'wx'});await rename(temporary,destination);}finally{try{await unlink(temporary);}catch(e){if(e.code!=='ENOENT')throw e;}}
-  return {...artifact,verifiedInventory:true,artifactPath:'.quarto/content-security-protocol/headers-netlify.txt',sha256:await fileDigest(new TextEncoder().encode(artifact.text))};
+  return {...artifact,verifiedInventory:true,artifactPath:'.quarto/content-security-protocol/'+artifactName,sha256:await fileDigest(new TextEncoder().encode(artifact.text))};
 }
 export async function prepareHeaders(projectRoot,outputDir,report,value){
   try{return await prepare(projectRoot,outputDir,report,value);}

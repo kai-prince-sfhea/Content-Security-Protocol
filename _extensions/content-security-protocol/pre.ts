@@ -1,9 +1,13 @@
 import {inspectProject,projectOptions,projectOutput,renderInputs} from './context.mjs';
 import {snapshotSources,beginRun,markState} from './state.mjs';
 import {fileDigest} from './core.mjs';
+import {preparedGraphRunId} from './finalizer.mjs';
 try {
   const root=await Deno.realPath(Deno.cwd()),inspection=await inspectProject(root),options=projectOptions(inspection);
-  if(options.config)await beginRun(root,{source:await snapshotSources(root,inspection),outputDir:projectOutput(root,inspection),renderedInputs:await renderInputs(root),kind:'native-render',configDigest:await fileDigest(new TextEncoder().encode(JSON.stringify(options.value)))});
+  if(options.config){
+    const outputDir=projectOutput(root,inspection);
+    await beginRun(root,{source:await snapshotSources(root,inspection),outputDir,renderedInputs:await renderInputs(root),kind:'native-render',configDigest:await fileDigest(new TextEncoder().encode(JSON.stringify(options.value))),kgRunId:await preparedGraphRunId(root,inspection,outputDir)});
+  }
   else await markState(root,'disabled');
 } catch(error){
   try{await markState(Deno.cwd(),'failed');}catch{}

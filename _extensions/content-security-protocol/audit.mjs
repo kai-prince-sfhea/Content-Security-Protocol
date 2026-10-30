@@ -3,6 +3,8 @@ import {lstat,readdir,readFile,realpath,mkdir} from 'node:fs/promises';
 import {join,relative,resolve,isAbsolute,sep} from 'node:path';
 import {VERSION,configuration,analyzeHtml,fileDigest,digest,serializePolicy,fail} from './core.mjs';
 import {cryptoInventory} from './review.mjs';
+import {preparedPacks,streamAsset,PREPARED_LIMITS} from './prepared-packs.mjs';
+import {preparedRuntimeCapabilities} from './capabilities.mjs';
 
 export const LIMITS=Object.freeze({files:5000,directories:5000,depth:64,totalBytes:128*1024*1024,fileBytes:32*1024*1024,htmlBytes:8*1024*1024});
 export const inside=(root,p)=>{const r=relative(root,p);return r!==''&&!isAbsolute(r)&&r!=='..'&&!r.startsWith('..'+sep);};
@@ -13,8 +15,8 @@ export async function noLinks(root,path,{create=false}={}){
     if(s.isSymbolicLink()||!s.isDirectory())fail('path','linked or non-directory components are unsupported');
   }
 }
-export async function inventory(output,limits=LIMITS,{retainBytes=true}={}){
-  limits={...LIMITS,...limits};const files=[],data=new Map();let total=0,directories=0;
+export async function inventory(output,limits=LIMITS,{retainBytes=true,preparedModelPacks=[],markers=[]}={}){
+  limits={...LIMITS,...limits};const files=[],paths=[],data=new Map(),markerFindings=[];let total=0,binaryTotal=0,directories=0;
   async function walk(dir,depth=0){
     if(depth>limits.depth||++directories>limits.directories)fail('output limits','directory count/depth exceeds the bounded audit contract');
     const entries=(await readdir(dir,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name));
@@ -24,13 +26,32 @@ export async function inventory(output,limits=LIMITS,{retainBytes=true}={}){
       if(s.isDirectory())await walk(p,depth+1);
       else{
         if(!s.isFile())fail('output','only regular files/directories are supported');
-        if(files.length>=limits.files||s.size>limits.fileBytes||total+s.size>limits.totalBytes)fail('output limits','reduce the output inventory or use a separately reviewed larger adapter');
-        const bytes=await readFile(p);if(bytes.length!==s.size)fail('output','changed during inventory; stop concurrent builds and retry');
-        total+=bytes.length;files.push({path:key,bytes:bytes.length,sha256:await fileDigest(bytes)});if(retainBytes)data.set(key,bytes);
+        if(paths.length>=limits.files)fail('output limits','reduce the output inventory or use a separately reviewed larger adapter');
+        paths.push({p,s,key});
       }
     }
   }
-  await walk(output);return {files,data};
+  await walk(output);
+  // A clean non-HTML render need not publish a browser model pack. Both
+  // metadata files must be absent together; extant files receive no exemption.
+  const prepared=await preparedPacks(output,preparedModelPacks,{allowAbsent:!paths.some(file=>/\.html?$/iu.test(file.key))}),seen=new Set();
+  for(const {p,s,key}of paths){
+        const current=await lstat(p);if(!current.isFile()||current.isSymbolicLink()||current.size!==s.size)fail('output','changed during inventory; stop concurrent builds and retry');
+        const asset=prepared.assets.get(key);
+        if(asset?.binary){
+          if((binaryTotal+=s.size)>PREPARED_LIMITS.totalBytes)fail('output limits','prepared binary total exceeds the bounded adapter');
+          const streamed=await streamAsset(p,{maximum:asset.maximum,bytes:asset.bytes,sha256:asset.sha256,markers});
+          files.push({path:key,bytes:streamed.bytes,sha256:streamed.sha256});seen.add(key);
+          for(const markerIndex of streamed.markerIndices)markerFindings.push({code:'forbidden-marker',path:key,markerIndex});
+          continue;
+        }
+        if(s.size>limits.fileBytes||total+s.size>limits.totalBytes)fail('output limits','reduce the output inventory or use a separately reviewed larger adapter');
+        const bytes=await readFile(p);if(bytes.length!==s.size)fail('output','changed during inventory; stop concurrent builds and retry');
+        const sha256=await fileDigest(bytes);if(asset&&(asset.bytes!==bytes.length||asset.sha256!==sha256))fail('prepared model packs','prepared executable SHA-256 differs from its receipt');
+        total+=bytes.length;files.push({path:key,bytes:bytes.length,sha256});if(retainBytes)data.set(key,bytes);if(asset)seen.add(key);
+  }
+  if([...prepared.assets.keys()].some(path=>!seen.has(path)))fail('prepared model packs','registered assets are missing from the output inventory');
+  return {files,data,markerFindings,prepared};
 }
 function localPath(page,value){
   // Reject encoded separators/parents rather than normalize a possibly different host mapping.
@@ -57,13 +78,16 @@ export async function auditOutput(projectRoot,outputDir,options,{limits=LIMITS}=
   const root=await realpath(projectRoot),output=resolve(root,outputDir);
   if(!inside(root,output))fail('output directory','use a separate directory within the project; auditing the project root or an outside path is unsupported');
   const top=relative(root,output).split(sep)[0].toLowerCase();if(['.quarto','.git','_extensions'].includes(top))fail('output directory','must not overlap private state, Git or extension code');
-  await noLinks(root,output);const original=await inventory(output,limits),pages=[];
+  await noLinks(root,output);const original=await inventory(output,limits,{preparedModelPacks:config.preparedModelPacks,markers:config.publication.markers}),pages=[];
   const fileHashes=new Map(original.files.map(f=>[f.path,f.sha256])),assetDigests=new Map();
   // Reuse digests only within this immutable in-memory inventory. Every audit
   // still reads/hashes the full tree twice; no mtime or cross-render cache.
   const assetDigest=(path,algorithm)=>{
     let hashes=assetDigests.get(path);if(!hashes){hashes=new Map();assetDigests.set(path,hashes);}
-    if(!hashes.has(algorithm))hashes.set(algorithm,digest(original.data.get(path),algorithm));
+    if(!hashes.has(algorithm)){
+      const bytes=original.data.get(path),asset=original.prepared.assets.get(path);
+      hashes.set(algorithm,bytes?digest(bytes,algorithm):streamAsset(join(output,path),{maximum:asset.maximum,bytes:asset.bytes,sha256:asset.sha256,algorithm}).then(value=>value.digest));
+    }
     return hashes.get(algorithm);
   };
   for(const file of original.files.filter(f=>/\.html?$/iu.test(f.path))){
@@ -75,7 +99,7 @@ export async function auditOutput(projectRoot,outputDir,options,{limits=LIMITS}=
       const p=localPath(file.path,ref.value),bytes=p===null?undefined:original.data.get(p);
       const finding=code=>page.findings.push({code,element:ref.element});
       if(ref.kind==='form'){continue;} // Form targets are server behavior, not static assets.
-      if(!bytes){finding(p===null?'local-reference-unresolved':'local-resource-missing');continue;}
+      if(!bytes&&!fileHashes.has(p)){finding(p===null?'local-reference-unresolved':'local-resource-missing');continue;}
       const item={element:ref.element,path:p,sha256:fileHashes.get(p)};
       if(['script','stylesheet'].includes(ref.kind)){
         item.sriCandidate='sha384-'+await assetDigest(p,'SHA-384');
@@ -88,22 +112,23 @@ export async function auditOutput(projectRoot,outputDir,options,{limits=LIMITS}=
     page.findings.sort((a,b)=>a.element-b.element||a.code.localeCompare(b.code));pages.push(page);
   }
   const manifest=original.files;
-  const publicationFindings=[];
+  const publicationFindings=[...original.markerFindings];
   for(const file of manifest){
     if(/(?:^|\/)(?:\.git|\.quarto|_extensions|private|\.env(?:\.[^/]*)?)(?:\/|$)|\.(?:qmd|rmd|ipynb)$/iu.test(file.path)||config.publication.paths.some(p=>p.endsWith('/')?file.path.startsWith(p):file.path===p))publicationFindings.push({code:'private-output-path',path:file.path});
-    if(config.publication.markers.length){const text=new TextDecoder().decode(original.data.get(file.path));for(let i=0;i<config.publication.markers.length;i++)if(text.includes(config.publication.markers[i]))publicationFindings.push({code:'forbidden-marker',path:file.path,markerIndex:i});}
+    if(config.publication.markers.length&&original.data.has(file.path)){const text=new TextDecoder().decode(original.data.get(file.path));for(let i=0;i<config.publication.markers.length;i++)if(text.includes(config.publication.markers[i]))publicationFindings.push({code:'forbidden-marker',path:file.path,markerIndex:i});}
   }
+  const capabilities=preparedRuntimeCapabilities({prepared:original.prepared,files:manifest,policy:config.policy,pages});for(const page of pages)delete page.modelPackReferences;
   const report={schema:'content-security-protocol-audit/v1',extensionVersion:VERSION,mode:'audit',enforcement:false,
     inventoryDigest:await fileDigest(new TextEncoder().encode(JSON.stringify(manifest))),
-    scope:{kind:'retained-final-output-tree',inventoryComplete:true,sourceRebuildComplete:'unassessed',dynamicBehavior:'unassessed',network:'not-accessed',accessibility:'not-assessed',headers:'not-delivered-or-verified'},
+    scope:{kind:'retained-final-output-tree',inventoryComplete:true,sourceRebuildComplete:'unassessed',dynamicBehavior:'unassessed',network:'not-accessed',accessibility:'not-assessed',headers:'not-delivered-or-verified',...(config.preparedModelPacks.length?{preparedModelPacks:config.preparedModelPacks,preparedBinaryBytes:original.prepared.totalBytes,preparedBinaryIntegrity:'author-selected receipt SHA-256; executable safety and transitive integrity unassessed',...(original.prepared.absentManifests.length?{unpublishedPreparedModelPacks:original.prepared.absentManifests}:{})}:{})},
     assessment:pages.length?'requires-review':'incomplete-no-html',
     declaredPolicy:{directives:config.policy,text:serializePolicy(config.policy),delivered:false,inlineCandidatesApproved:false},
-    files:manifest,pages,
-    findings:[...publicationFindings,...(pages.length?[]:[{code:'empty-html-inventory'}])],
+    files:manifest,pages,capabilities,
+    findings:[...publicationFindings,...capabilities.findings,...(pages.length?[]:[{code:'empty-html-inventory'}])],
     limitations:['Static inventory is not a security certificate or runtime dependency proof.','Full output-tree scans include retained/stale output; they do not prove all current sources rendered.','Inline hashes and SRI values are candidates, not authority; review before policy approval.','External resources are never fetched. CSS/JS dynamic dependencies and actual browser/host delivery remain unassessed.','Reports omit source bodies and URL query/fragment/credentials but output paths/origins can still be private.']};
   report.cryptography=cryptoInventory(report);
   // Detect changing files after parsing; reports must describe one stable tree.
-  const after=await inventory(output,limits,{retainBytes:false});if(JSON.stringify(after.files)!==JSON.stringify(manifest))fail('output','changed during audit; stop concurrent builds and retry');
+  const after=await inventory(output,limits,{retainBytes:false,preparedModelPacks:config.preparedModelPacks});if(JSON.stringify(after.files)!==JSON.stringify(manifest))fail('output','changed during audit; stop concurrent builds and retry');
   return report;
 }
 export function markdown(report){
@@ -112,6 +137,8 @@ export function markdown(report){
   return '# Content Security Protocol audit\n\nRead-only experimental inventory; no policy installed.\n\n'+
     `Assessment: ${report.assessment}. ${report.files.length} files; ${report.pages.length} HTML pages.\n\n`+
     'Scope: retained final output tree; current source rebuild, dynamic behavior, delivered headers and accessibility remain unassessed.\n\n'+
+    (report.scope.unpublishedPreparedModelPacks?.length?'Selected browser model packs were absent from this non-HTML inventory. No binary exemptions apply to their remaining files.\n\n':'')+
+    (report.capabilities?.records.length?'Prepared runtime capabilities: '+report.capabilities.records.length+' receipt-bound WASM profiles; compilation permission remains an explicit script-src choice. Actual execution and delivered policy are untested.\n\n':'')+
     'Inventory digest: '+report.inventoryDigest+'\n\n'+summary+'\n\n'+
     'Declared policy (undelivered):\n\n```text\n'+report.declaredPolicy.text+'\n```\n\n'+
     'Inline hashes and SRI are candidates only. Review JSON findings; no security score is assigned.\n\n'+

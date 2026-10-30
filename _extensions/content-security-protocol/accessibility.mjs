@@ -7,6 +7,9 @@ import {createHash} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import process from 'node:process';
 import {VERSION} from './core.mjs';
+import {inventory} from './audit.mjs';
+import {createReadStream,createWriteStream} from 'node:fs';
+import {pipeline} from 'node:stream/promises';
 
 export const ACCESSIBILITY_NATIVE_VERSION='1.11.5';
 export const ACCESSIBILITY_AXE_VERSION='4.10.3';
@@ -39,26 +42,14 @@ async function directories(root,path){
   }
 }
 
-async function snapshot(output,expected){
-  const files=[],data=new Map();let total=0;
-  async function walk(dir){
-    const entries=(await readdir(dir,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name));
-    for(const entry of entries){
-      const path=join(dir,entry.name),state=await lstat(path),name=relative(output,path).split(sep).join('/');
-      if(state.isSymbolicLink())throw failure('linked-output');
-      if(state.isDirectory())await walk(path);
-      else{
-        if(!state.isFile()||!regularPath(name)||files.length>=5000||state.size>32*1024*1024||(total+=state.size)>128*1024*1024)throw failure('output-limits');
-        // A rendered project configuration would move native report placement.
-        if(name.split('/').includes('_quarto.yml')||name.split('/').includes('_quarto.yaml'))throw failure('output-project-configuration');
-        const bytes=await readFile(path);if(bytes.length!==state.size)throw failure('output-changed');
-        files.push({path:name,bytes:bytes.length,sha256:sha(bytes)});data.set(name,bytes);
-      }
-    }
+async function snapshot(output,expected,preparedModelPacks=[]){
+  let result;try{result=await inventory(output,undefined,{preparedModelPacks});}catch(error){throw failure(error.message?.includes('linked')?'linked-output':error.message?.includes('limit')?'output-limits':'output-changed');}
+  for(const file of result.files){
+    if(!regularPath(file.path))throw failure('output-limits');
+    if(file.path.split('/').includes('_quarto.yml')||file.path.split('/').includes('_quarto.yaml'))throw failure('output-project-configuration');
   }
-  await walk(output);
-  if(JSON.stringify(files)!==JSON.stringify(expected))throw failure('output-changed');
-  return data;
+  if(JSON.stringify(result.files)!==JSON.stringify(expected))throw failure('output-changed');
+  return result;
 }
 
 async function jsonFile(path,maxBytes=32*1024*1024){
@@ -146,12 +137,17 @@ export async function runAccessibility(projectRoot,outputDir,report,value={}, {r
   if(!within(root,output)||relative(root,output).split(sep).some(p=>['.quarto','.git','_extensions'].includes(p)))throw failure('invalid-output-path');
   const outputState=await lstat(output);if(outputState.isSymbolicLink()||!outputState.isDirectory()||await realpath(output)!==output)throw failure('linked-output');
   if(report?.schema!=='content-security-protocol-audit/v1'||report.mode!=='audit'||report.scope?.inventoryComplete!==true||!Array.isArray(report.files)||!report.files.length||report.inventoryDigest!==sha(Buffer.from(JSON.stringify(report.files))))throw failure('invalid-current-audit');
-  const data=await snapshot(output,report.files);
+  const preparedModelPacks=report.scope?.preparedModelPacks??[],captured=await snapshot(output,report.files,preparedModelPacks),data=captured.data;
   if(!report.files.some(file=>file.path.endsWith('.html')))throw failure('empty-html-inventory');
   const parent=join(root,'.quarto','content-security-protocol','accessibility');await directories(root,parent);
   const stage=await mkdtemp(join(parent,'run-')),site=join(stage,'_site');await mkdir(site);
   await writeFile(join(stage,'_quarto.yml'),'project:\n  type: website\n  output-dir: _site\n',{flag:'wx'});
   for(const [name,bytes]of data){const path=join(site,...name.split('/'));await mkdir(resolve(path,'..'),{recursive:true});await writeFile(path,bytes,{flag:'wx'});}
+  for(const [name,asset]of captured.prepared.assets)if(asset.binary){
+    const destination=join(site,...name.split('/'));await mkdir(resolve(destination,'..'),{recursive:true});
+    await pipeline(createReadStream(join(output,...name.split('/')),{highWaterMark:1024*1024}),createWriteStream(destination,{flags:'wx'}));
+  }
+  await snapshot(site,report.files,preparedModelPacks);
   const artifactDirectory=relative(root,stage).split(sep).join('/');
   const summary={schema:'content-security-protocol-accessibility/v1',extensionVersion:VERSION,assessment:'incomplete',snapshot:{inventoryDigest:report.inventoryDigest,files:report.files.length},artifactDirectory,native:{quartoVersion:null,axeVersion:null,findingsVersion:2,signatureScheme:1},scope:{standard:'WCAG 2.2 AA automated subset',nativeRules:'native default all rules; WCAG subset classified by result tags',uncertainChecks:'not-reported-by-native; manual review required',viewports:['1440x900','320x568'],themes:['light','dark'],states:'initial page load; discovered native color modes only',network:'not-sandboxed; page code may access external resources',baseline:'none; accepted findings are never suppressed',conformance:'not-established'},findings:[],needsReview:[],failures:[]};
   const env={...process.env};for(const key of ['QUARTO_PROJECT_OUTPUT_DIR','QUARTO_PROJECT_RENDER_ALL','QUARTO_PROJECT_INPUT_FILES','QUARTO_PROJECT_OUTPUT_FILES','QUARTO_USE_FILE_FOR_PROJECT_INPUT_FILES','QUARTO_USE_FILE_FOR_PROJECT_OUTPUT_FILES','QUARTO_PROJECT_DIR','QUARTO_PROJECT_SCRIPT_QUIET','QUARTO_PROFILE'])delete env[key];
@@ -166,7 +162,9 @@ export async function runAccessibility(projectRoot,outputDir,report,value={}, {r
   try{
     const version=await execute('version',['--version'],15000);if(version.exitCode!==0||typeof version.stdout!=='string')throw failure('native-version-unavailable');
     const actual=version.stdout.trim();if(actual!==ACCESSIBILITY_NATIVE_VERSION)throw failure('unsupported-native-version');summary.native.quartoVersion=actual;
-    const args=['call','axe','_site','--viewports','1440x900,320x568','--themes','light,dark','--timeout',String(options.timeoutMs),'--settle',String(options.settleMs),'--fail-on','minor','--quiet'];
+    // Native diagnostics are already bounded and captured privately. --quiet
+    // would also suppress the only useful browser/CDP startup failure detail.
+    const args=['call','axe','_site','--viewports','1440x900,320x568','--themes','light,dark','--timeout',String(options.timeoutMs),'--settle',String(options.settleMs),'--fail-on','minor'];
     const native=await execute('scan',args,options.totalTimeoutMs);summary.native.exitCode=native.exitCode;
     if(![0,1,2].includes(native.exitCode))throw failure('native-command-failed');
     let parsed;try{parsed=await parsedArtifacts(stage,report.files,options);}catch(error){if(error.code==='ENOENT')throw failure('native-artifacts-missing');throw error;}
@@ -174,7 +172,7 @@ export async function runAccessibility(projectRoot,outputDir,report,value={}, {r
     summary.findings=parsed.violations;summary.needsReview=parsed.needsReview;summary.failedCells=parsed.failedCells;
     if(parsed.failedCells.length||native.exitCode===2)throw failure('native-scan-incomplete');
     if((native.exitCode===0&&parsed.violations.length)||(native.exitCode===1&&!parsed.violations.length))throw failure('native-artifacts-invalid');
-    await snapshot(output,report.files);try{await snapshot(site,report.files);}catch{throw failure('staging-changed');}
+    await snapshot(output,report.files,preparedModelPacks);try{await snapshot(site,report.files,preparedModelPacks);}catch{throw failure('staging-changed');}
     summary.assessment=summary.findings.length?'findings':summary.needsReview.length?'needs-review':'automated-checks-complete';
   }catch(error){summary.failures.push({code:summaryCodes.has(error?.code)?error.code:'native-artifacts-invalid'});}
   await writeFile(join(stage,'summary.json'),JSON.stringify(summary,null,2)+'\n',{flag:'wx'});

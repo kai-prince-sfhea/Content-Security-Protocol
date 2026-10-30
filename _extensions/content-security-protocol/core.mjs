@@ -1,6 +1,8 @@
 // Copyright 2026 Kai Prince. Experimental audit; no policy is installed here.
 import {parse} from './vendor/html-parser.mjs';
-export const VERSION='0.0.4';
+import {validateInteractionProfiles} from './interaction-profile.mjs';
+import {WASM_TOKEN,CAPABILITY_LIMITS,inspectModelPackDeclaration} from './capabilities.mjs';
+export const VERSION='0.0.7';
 
 export const DEFAULT_POLICY=Object.freeze({
   'default-src':["'none'"], 'base-uri':["'none'"], 'object-src':["'none'"],
@@ -16,7 +18,7 @@ export function configuration(value){
   if(value===undefined||value===false)return null;
   if(!plain(value))fail('configuration','use a mapping with enabled: true, or false to disable');
   if(value.enabled===false)return null;
-  for(const k of Object.keys(value))if(!['enabled','mode','policy','fail-on','publication'].includes(k))fail('configuration','unsupported option; use enabled, mode, policy, fail-on or publication');
+  for(const k of Object.keys(value))if(!['enabled','mode','policy','fail-on','publication','prepared-model-packs','interaction-profiles'].includes(k))fail('configuration','unsupported option; use the documented audit, policy, publication, prepared-model-packs or interaction-profiles keys');
   if(value.enabled!==true)fail('enabled','explicitly select true to audit, or false to disable');
   if(value.mode!==undefined&&value.mode!=='audit')fail('mode','only audit is implemented; no enforcement or report-only delivery is installed');
   const policy=structuredClone(DEFAULT_POLICY);
@@ -27,12 +29,12 @@ export function configuration(value){
       if(!Array.isArray(list)||!list.length||list.length>128)fail('policy sources','use a nonempty bounded sequence');
       for(const source of list){
         if(typeof source!=='string'||source.length>256)fail('policy source','use a documented source string');
-        let valid=["'none'","'self'"].includes(source);
+        let valid=["'none'","'self'"].includes(source)||key==='script-src'&&source===WASM_TOKEN;
         const h=/^'sha(256|384|512)-([A-Za-z0-9+/]+={0,2})'$/u.exec(source);
         if(h&&['script-src','style-src'].includes(key)){const length={256:32,384:48,512:64}[h[1]];try{valid=atob(h[2]).length===length&&btoa(atob(h[2]))===h[2];}catch{valid=false;}}
         if(!valid){try{const u=new URL(source),host=u.hostname;valid=u.protocol==='https:'&&u.origin===source&&!u.username&&!u.password&&!/^[0-9.]+$/u.test(host)&&host.length<=253&&host.split('.').every(label=>label.length<=63&&/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label));}catch{}}
         if(['data:','blob:'].includes(source)&&!['base-uri','object-src','frame-ancestors','form-action','script-src'].includes(key))valid=true;
-        if(!valid)fail('policy source','use self/none keywords, a canonical HTTPS origin or a documented digest/scheme; wildcards, credentials, paths and unsafe tokens are unsupported');
+        if(!valid)fail('policy source','use self/none keywords, a canonical HTTPS origin or a documented digest/scheme; wasm-unsafe-eval is script-src-only; wildcards, credentials, paths and broad eval are unsupported');
       }
       if(list.includes("'none'")&&list.length!==1)fail('policy sources','none must be the only source');
       policy[key]=[...new Set(list)].sort();
@@ -45,7 +47,10 @@ export function configuration(value){
     if(!Array.isArray(items)||items.length>64||items.some(x=>typeof x!=='string'||!x.length||x.length>256||/[\u0000-\u001f]/u.test(x)))fail('publication '+name,'use up to 64 nonempty bounded text values');
   }
   if(paths.some(p=>p.startsWith('/')||p.includes('//')||p.includes('\\')||p.includes(':')||p.split('/').some(x=>x==='..'||x==='.')||p.includes('*')))fail('publication forbidden-paths','use exact relative output paths or trailing-slash prefixes, without empty components/traversal/wildcards');
-  return {mode:'audit',policy:Object.fromEntries(Object.entries(policy).sort(([a],[b])=>a.localeCompare(b))),failOn,publication:{markers:[...markers],paths:[...paths]}};
+  const preparedModelPacks=value['prepared-model-packs']??[];
+  if(!Array.isArray(preparedModelPacks)||preparedModelPacks.length>8||new Set(preparedModelPacks).size!==preparedModelPacks.length||preparedModelPacks.some(path=>typeof path!=='string'||path.length>2048||!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(path)||path.split('/').some(part=>!part||part.startsWith('.'))||!/(?:^|\/)models\.json$/u.test(path)))fail('prepared-model-packs','select up to eight unique ordinary relative models.json paths');
+  const interactionProfiles=validateInteractionProfiles(value['interaction-profiles']??[]);
+  return {mode:'audit',policy:Object.fromEntries(Object.entries(policy).sort(([a],[b])=>a.localeCompare(b))),failOn,publication:{markers:[...markers],paths:[...paths]},preparedModelPacks:[...preparedModelPacks],...(interactionProfiles.length?{interactionProfiles}:{})};
 }
 export const serializePolicy=policy=>Object.entries(policy).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+' '+v.join(' ')).join('; ');
 const bytes=s=>new TextEncoder().encode(s);
@@ -70,7 +75,7 @@ function classify(value){
   }catch{return {origin:'unresolved',credentials:false};}
 }
 export async function analyzeHtml(input,{path='index.html',policy=DEFAULT_POLICY}={}){
-  const findings=[],resources=[],inline=[],localReferences=[];
+  const findings=[],resources=[],inline=[],localReferences=[],modelDeclarations=[];let modelDeclarationOverflow=0;
   const issue=(code,element,extra={})=>findings.push({code,element,...extra});
   const doc=parse(input,{sourceCodeLocationInfo:true,scriptingEnabled:true,onParseError:e=>issue('html-parse-error',0,{reason:e.code})});
   let element=0,base=false;
@@ -107,6 +112,7 @@ export async function analyzeHtml(input,{path='index.html',policy=DEFAULT_POLICY
       if(['a','area'].includes(tag)&&a.ping!==undefined)issue('hyperlink-ping-unassessed',index);
       if(tag==='script'){
         const type=(a.type||'').trim().toLowerCase();
+        if(!inert&&n.namespaceURI==='http://www.w3.org/1999/xhtml'&&type==='application/json'&&(a.class||'').split(/[\t\n\f\r ]+/u).includes('local-ai-data')){if(modelDeclarations.length<CAPABILITY_LIMITS.referencesPerPage)modelDeclarations.push({body:text(n),element:index});else modelDeclarationOverflow++;}
         if(acceptedClassic.has(type)){
           issue('script-behavior-unassessed',index); // Includes dynamic imports/workers/eval/connect, not inferred absent.
           if(a.src!==undefined)resource(a.src,'script-src','script',n,index);
@@ -141,6 +147,7 @@ export async function analyzeHtml(input,{path='index.html',policy=DEFAULT_POLICY
   walk(doc);await Promise.all(pending);inline.sort((a,b)=>a.element-b.element);
   for(const h of inline)if(h.authorization==='not-authorized')issue('inline-hash-not-authorized',h.element,{kind:h.kind});
   if(base){localReferences.length=0;for(const r of resources)r.authorization='unassessed-base-url';issue('local-reference-resolution-incomplete',0);}
+  const modelPackReferences=[];for(const declaration of modelDeclarations){const inspected=inspectModelPackDeclaration(declaration.body,{page:path,element:declaration.element,basePresent:base});modelPackReferences.push(inspected.reference);findings.push(...inspected.findings);}if(modelDeclarationOverflow){modelPackReferences.push({page:path,element:0,status:'unassessed',omittedReferences:modelDeclarationOverflow});issue('prepared-model-reference-coverage-incomplete',0,{omittedReferences:modelDeclarationOverflow});}
   findings.sort((a,b)=>a.element-b.element||a.code.localeCompare(b.code));
-  return {path,inline,resources,findings,localReferences,coverage:'static-html-only',dynamicBehavior:'unassessed'};
+  return {path,inline,resources,findings,localReferences,...(modelPackReferences.length?{modelPackReferences}:{}),coverage:'static-html-only',dynamicBehavior:'unassessed'};
 }

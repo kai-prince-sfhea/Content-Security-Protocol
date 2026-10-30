@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.0.7 — explicit static-host header selection — 26 October 2026
+
+- Add the explicitly selected `cloudflare-pages` header adapter with one uniform
+  static-response rule, a separate private artifact, strict complete-line limits
+  and Functions/Worker/routing/Wrangler conflict refusals.
+- Keep Netlify as the default, its route mapping and existing refusal behavior,
+  and the exact current-inventory/policy/review gate for both adapters.
+- Extend the ordinary tutorial and installed command reference. Header preparation
+  remains private and adds no policy installation, collector or deployment.
+  Hosted delivery, security and human accessibility acceptance remain separate.
+
+## 0.0.6 — explicit browser-state and capability audits — 25 October 2026
+
+- Accept explicit `'wasm-unsafe-eval'` only in `script-src`, retaining the refusal
+  of broad JavaScript eval and automatic policy widening.
+- Bind prepared WASM capability diagnostics to exact final assets, manifest and
+  preparation receipt hashes. Report unselected, missing or unassessed Local AI
+  manifest references with rejected values omitted and bounded coverage retained.
+- Keep deliberate execution denial reviewable without calling it a security
+  flaw or interpreting an acknowledgement as permission or delivered enforcement.
+
+- Add strict finite project `interaction-profiles` and an explicitly acknowledged
+  `accessibility-browser` command. Ordinary renders validate declarations and
+  keep their audit-only behaviour; no browser, axe download or model runs.
+- Bind selected state checks to the current output/configuration/runtime receipt
+  and keep diagnostics private. Distinguish missing/uncertain coverage, automated
+  violations and manual review from WCAG conformance or host enforcement.
+- Retain existing native accessibility, verified read-only Markdown reports,
+  explicit policy authority and header-candidate boundaries. New browser/runtime
+  checks apply to their exact local fixture and installed-tool bytes.
+
+## 0.0.5 — local cross-extension composition update, 23 October 2026
+
+- Add a read-only `report` command for the current verified Markdown audit,
+  refusing stale or changed generations. Explain the ordinary author workflow
+  separately from optional policy, headers and accessibility configuration.
+- Audit after Knowledge Graph Extraction finishes named graphs, CV navigation
+  and website search, regardless of the two extensions' native hook order.
+- Bind deferred audits to both current render generations and the output
+  directory; stale, disabled or incomplete composition cannot create a current
+  report. Preserve standalone auditing and configured finding thresholds.
+- Explain automatic combined behaviour, policy review and the boundary for
+  later custom output-changing hooks. No policy is installed or widened.
+- Add explicit receipt-bound prepared-model-pack auditing and private
+  accessibility staging. Stream registered WASM/model binaries within separate
+  limits while preserving ordinary executable/text limits and publication checks.
+- Permit wholly absent browser packs in clean non-HTML inventories, with
+  explicit unpublished scope and no exemption for extant unregistered files.
+- Preserve bounded private native accessibility diagnostics, including browser
+  startup errors, without relaxing incomplete-scan or missing-artifact checks.
+
 ## Unreleased documentation review — 14 October 2026
 
 - Distinguish native CLI version presentation from the exact installed manifest

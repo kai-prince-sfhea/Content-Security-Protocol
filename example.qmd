@@ -1,17 +1,93 @@
 ---
-title: Synthetic publication audit example
+title: Your first publication audit
 ---
 
-## Native reading
+This tutorial uses fictional public content. The extension observes rendered
+files and leaves them unchanged; no policy is delivered to the browser.
+
+## 1. Enable the audit and render
+
+From this checkout, run `quarto render` or use your editor's **Render Project**
+control. The supplied `_quarto.yml` already enables auditing. For an existing
+project, install the extension as described in the repository's `README.md`, then
+merge this into project YAML:
+
+```yaml
+content-security-protocol:
+  enabled: true
+```
+
+Security options belong in project/profile configuration, not this QMD's front
+matter. Normal rendering should retain the following content and native link.
+
+## 2. Inspect the rendered page
 
 This fictional page exercises ordinary HTML, a [native destination](#details),
 and mathematics $x^2 + y^2 = z^2$. The audit observes final bytes and leaves them
 unchanged. No policy is delivered to the browser.
 
-::: {.callout-note}
+::: {#audit-details .callout-note collapse="true"}
+## A small interactive state
+
 Inline script/style hashes are candidates for review, not automatic permission.
 :::
 
-## Details {#details}
+Open and close this native callout. The ordinary audit inventories its final
+files; that alone does not test the expanded state. The README's optional
+interaction-profile example uses this stable QMD ID for a separately requested
+browser check. Your normal preview needs no author JavaScript or helper script.
 
-Read the private build report separately from this public page.
+## 3. Read the private report {#details}
+
+After rendering, run the installed command from your project directory:
+
+```sh
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts report
+```
+
+That is the GitHub installation path. For a local checkout installation, omit
+`kai-prince-sfhea/`. The new `report` command currently requires the unpublished
+local candidate. It returns verified Markdown with file/page counts, findings
+and coverage; it writes no new file and refuses stale state. The audit stays
+private under `.quarto`, outside the website's resources.
+
+## 4. Edit and render again
+
+Change this QMD's title. Calling `report` before rerendering should refuse stale
+source state. Render again, then repeat `report` to read the new current audit.
+Historical reports remain available, but a saved report cannot certify later
+output. Keep any manually saved copy outside your published project.
+
+## 5. Optionally prepare a host-header candidate
+
+After the ordinary audit works, use one explicit installed command to prepare
+private report-only header text:
+
+```sh
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts headers
+```
+
+That keeps the existing Netlify default. For Cloudflare Pages static hosting:
+
+```sh
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts headers --adapter cloudflare-pages
+```
+
+For a local installation, omit `kai-prince-sfhea/` as above. Open the resulting
+private `headers-netlify.txt` or `headers-cloudflare-pages.txt` under
+`.quarto/content-security-protocol`. Read the declared policy and findings
+before any separate host setup. The Cloudflare file uses one uniform static
+rule; its complete header line has a strict host limit. Unsupported host
+configuration is refused. Neither command installs `_headers`, changes this
+page, blocks scripts, sends reports or deploys your site.
+
+Keep report-only first. Enforcement requires the README's separate review
+workflow and actual host-response checks. Successful rendering and private
+candidate preparation do not establish hosted enforcement or security.
+
+## Next steps
+
+Open `README.md` in the repository for the options reference, which introduces
+policy choices after the ordinary audit works. Its hosting and accessibility guide covers
+optional trusted-page execution and separately reviewed header delivery.
+Automated findings are evidence for review, not a security or WCAG certificate.

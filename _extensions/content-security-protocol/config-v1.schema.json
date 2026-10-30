@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:quarto:content-security-protocol:config:v1",
   "title": "Content Security Protocol project options",
-  "description": "Structural schema. Runtime additionally validates canonical origins, digest lengths, forbidden path confinement and none-only sources. Disabled mappings deliberately bypass other options.",
+  "description": "Structural schema. Runtime additionally validates canonical origins, digest lengths, forbidden path confinement and none-only sources. Disabled mappings deliberately bypass other options. Interaction profiles are declarations only. Runtime also checks unique profile/page/state IDs, implicit-initial cell budgets, UTF-8 byte limits and contained paths; no browser runs during rendering.",
   "anyOf": [
     {
       "const": false
@@ -145,7 +145,8 @@
                   {
                     "enum": [
                       "'self'",
-                      "'none'"
+                      "'none'",
+                      "'wasm-unsafe-eval'"
                     ]
                   },
                   {
@@ -372,6 +373,16 @@
             "any"
           ]
         },
+        "prepared-model-packs": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*models\\.json$"
+          }
+        },
         "publication": {
           "type": "object",
           "additionalProperties": false,
@@ -396,6 +407,275 @@
                 "pattern": "^[^\\u0000-\\u001f]+$"
               }
             }
+          }
+        },
+        "interaction-profiles": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9-]{0,63}(?![\\s\\S])"
+              },
+              "version": {
+                "const": 1
+              },
+              "pages": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "maxLength": 1024,
+                      "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_./-]*\\.html(?![\\s\\S])"
+                    },
+                    "states": {
+                      "type": "array",
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "maxLength": 64,
+                            "pattern": "^[a-z][a-z0-9-]{0,63}(?![\\s\\S])"
+                          },
+                          "actions": {
+                            "type": "array",
+                            "maxItems": 16,
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "click": {
+                                      "type": "object",
+                                      "properties": {
+                                        "selector": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 512,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]+(?![\\s\\S])"
+                                        }
+                                      },
+                                      "required": [
+                                        "selector"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "click"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "fill": {
+                                      "type": "object",
+                                      "properties": {
+                                        "selector": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 512,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]+(?![\\s\\S])"
+                                        },
+                                        "value": {
+                                          "type": "string",
+                                          "maxLength": 2048,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]*(?![\\s\\S])"
+                                        }
+                                      },
+                                      "required": [
+                                        "selector",
+                                        "value"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "fill"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "select": {
+                                      "type": "object",
+                                      "properties": {
+                                        "selector": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 512,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]+(?![\\s\\S])"
+                                        },
+                                        "value": {
+                                          "type": "string",
+                                          "maxLength": 2048,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]*(?![\\s\\S])"
+                                        }
+                                      },
+                                      "required": [
+                                        "selector",
+                                        "value"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "select"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "object",
+                                      "properties": {
+                                        "selector": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 512,
+                                          "pattern": "^[^\\u0000-\\u001f\\u007f]+(?![\\s\\S])"
+                                        },
+                                        "key": {
+                                          "enum": [
+                                            "Enter",
+                                            "Space",
+                                            "Tab",
+                                            "Escape",
+                                            "ArrowUp",
+                                            "ArrowDown",
+                                            "ArrowLeft",
+                                            "ArrowRight",
+                                            "Home",
+                                            "End",
+                                            "PageUp",
+                                            "PageDown"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "selector",
+                                        "key"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "key"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              ]
+                            }
+                          },
+                          "ready": {
+                            "type": "object",
+                            "properties": {
+                              "selector": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 512,
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+(?![\\s\\S])"
+                              },
+                              "state": {
+                                "enum": [
+                                  "visible",
+                                  "hidden"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "selector",
+                              "state"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "actions"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "viewports": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer",
+                      "minimum": 240,
+                      "maximum": 4096
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 200,
+                      "maximum": 4096
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "height"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "colorSchemes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "light",
+                    "dark"
+                  ]
+                }
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 30000
+              },
+              "totalTimeoutMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 3600000
+              },
+              "settleMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "id",
+              "version",
+              "pages"
+            ],
+            "additionalProperties": false
           }
         }
       }

@@ -1,6 +1,6 @@
 # Content Security Protocol
 
-Experimental **0.0.4**. Publication assurance for Quarto:
+Experimental **0.0.7**. Publication assurance for Quarto:
 a read-only audit, explicit host-header preparation and optional accessibility
 checking. It inventories final files, proposes static inline hashes
 and local SRI values, and compares discovered resource origins with an explicit
@@ -11,6 +11,12 @@ resources and assigns no security score. Optional accessibility checking execute
 trusted page code on a private copy. No tool establishes that a website is secure.
 
 ## Install and enable
+
+The GitHub command below follows the experimental `main` branch, including the
+`report` command, composition-finalisation, prepared-model-pack integration,
+explicit browser-state command and Cloudflare Pages header preparation.
+This is development source, not a supported tagged release. A local-checkout
+installation is also described below.
 
 Use Quarto **1.11.5 prerelease** for the tested workflow. From an existing Quarto
 website, install the extension from GitHub:
@@ -25,6 +31,9 @@ Add to the project's `_quarto.yml`:
 content-security-protocol:
   enabled: true
 ```
+
+This is enough for a first audit. Render your existing project with the editor's
+**Render Project** control or `quarto render`; no policy editing is required.
 
 Then use normal `quarto render`. The installed metadata extension supplies its
 pre/post-render hooks automatically; keep your existing project type, theme, filters
@@ -65,6 +74,7 @@ Reports are **private build material**. Use the installed command interface:
 
 ```sh
 quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts status
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts report
 quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts audit
 ```
 
@@ -72,6 +82,37 @@ quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts audit
 declared source/configuration and runtime identities. Installation supplies
 pre/post hooks automatically; ordinary renders invalidate old status before work
 and publish a new generation only after the audit completes.
+
+For ordinary author use, enable the extension, render your project, then use
+`report` to read the current audit as Markdown. It checks the same freshness and
+integrity as `status`, writes no new file and refuses stale results. To save a
+private copy, append `> ../audit-report.md` to that command **only when the parent
+is a private folder outside your published project**, or select an explicit
+private destination. Keep running the command from the project folder. The
+immutable `report.md` below can also be opened in your
+editor. Neither a saved copy nor a historical generation establishes current
+status after later edits.
+
+The [example.qmd tutorial](example.qmd) guides the first audit, reading its
+private report, editing a page and rerendering. This README contains the full
+options, policy, companion-extension, hosting and accessibility references.
+
+### Choose what to configure
+
+| Your task | Author action |
+| --- | --- |
+| Start auditing an existing site | Set `enabled: true`; keep normal Render/Preview. |
+| Read the latest verified findings | Run the installed `report` command above. |
+| Check accessibility | Follow [hosting and accessibility](#hosting-and-accessibility); the explicit command executes trusted rendered page code. |
+| Compare your intended hosting policy | Set `policy` in project YAML; discovery does not grant permissions. |
+| Prepare headers for a host | Use the separate reviewed header preparation workflow below; ordinary render does not install a policy. |
+
+This extension adds no reader interface or theme. Continue styling your site
+with Quarto's `format.html.theme` / `css`; every final asset is still audited.
+Keep security policy options at project/profile level, rather than repeating
+them in individual pages.
+Private generated reports and diagnostics currently use English; page `lang`
+does not translate them.
 
 - `.quarto/content-security-protocol/status.json`: pending, complete, failed,
   disabled or cleared state.
@@ -88,6 +129,36 @@ resources. A disabled, failed or interrupted build leaves history available but
 does not claim a current result. Changes made after this hook are detected by
 `status`; run `audit` after those changes. Invalid native configuration can fail
 before hooks run, so explicit status verification remains necessary.
+
+## Behaviour alongside the other extensions
+
+With Knowledge Graph Extraction's composition finalizer enabled, the ordinary
+render audits **after** the graph publisher finishes. This includes its separate
+named graph pages, the CV graph navigator added to Interactive CV pages and the
+public graph entries added to website search. Keep using the same QMD/YAML and
+normal Quarto Render or Preview; no audit script or manual hook ordering is
+required for this combination.
+
+The extensions bind the pending audit to the current render's graph run. If the
+security hook runs first, its report stays pending until graph publication
+finishes; if it runs later, it audits immediately. An interrupted graph build,
+an obsolete marker or a disabled extension cannot certify a new current audit.
+The private `.quarto/content-security-protocol/deferred-composition.json` marker
+is temporary build state, never a website resource. This integration requires
+Knowledge Graph Extraction 0.0.9's composition-finalizer support; older
+copies still require the explicit `audit` command after graph output changes.
+
+Accessible Maths, Maths Knowledge Graph, Local AI Websites, Generative Websites,
+Interactive CV and citation features are assessed through their **rendered
+bytes**, without installing extra copies, running an AI model or widening the
+declared policy. Graph iframes, browser workers, model origins and interactive
+scripts may produce policy findings. Review these against the features you
+intend to enable; discovery never grants a permission automatically. An audit
+is separate from optional accessibility execution and human accessibility review.
+
+Other custom post-render hooks can still change output after the final graph
+and audit stages. In that case `status` detects the change; run the explicit
+`audit` command after your final custom hook or finished build.
 
 ## Options and policy authority
 
@@ -111,6 +182,7 @@ status/derived commands, for example by selecting `QUARTO_PROFILE`. See
 | `fail-on` | `none` | `known` fails on known static violations; `any` fails on any finding. Neither means complete security coverage. |
 | `publication.forbidden-markers` | `[]` | Up to 64 private text markers; reports identify marker indices, never the marker itself. |
 | `publication.forbidden-paths` | `[]` | Exact relative files or trailing-slash prefixes to flag in output; no empty components, wildcards or traversal. |
+| `prepared-model-packs` | `[]` | Explicit relative `models.json` paths for Local AI Websites' prepared, published packs. Allows bounded streamed model/WASM auditing; no directory exemption or automatic download. |
 
 Copied source notebooks/QMD, private/state/Git/extension paths and `.env` files
 are flagged by default. Marker scanning covers raw final file text; compressed
@@ -136,10 +208,27 @@ content-security-protocol:
 
 Use a sequence for each directive. Supported sources are `'self'`, `'none'`,
 canonical HTTPS DNS origins and valid SHA-256/384/512 digest tokens for `script-src`
-and `style-src`. `data:`/`blob:`
-are admitted only for the documented non-script resource directives. Wildcards,
-unsafe execution keywords, nonce delivery, arbitrary paths/credentials and
+and `style-src`. The explicit `'wasm-unsafe-eval'` token is accepted **only in
+`script-src`**. It permits WebAssembly compilation; it does not permit JavaScript
+string evaluation. Broad `'unsafe-eval'` and `'unsafe-inline'` remain refused.
+`data:`/`blob:` are admitted only for the documented non-script resource
+directives. Wildcards, nonce delivery, arbitrary paths/credentials and
 unimplemented directives are refused. `none` must be the sole source.
+
+If you intend a selected browser runtime to compile WebAssembly, declare that
+choice in ordinary project YAML:
+
+```yaml
+content-security-protocol:
+  enabled: true
+  policy:
+    script-src: ["'self'", "'wasm-unsafe-eval'"]
+```
+
+This changes the **declared, undelivered policy**. Worker, connection, MIME,
+CORS and isolation requirements still need their own checks; this snippet is
+not a complete deployment policy. A discovered WASM file never adds the token
+automatically. See the [CSP specification](https://www.w3.org/TR/CSP/).
 
 Supported directives: `default-src`, `base-uri`, `object-src`, `frame-ancestors`,
 `form-action`, `script-src`, `style-src`, `img-src`, `font-src`, `media-src`,
@@ -174,13 +263,71 @@ selects it; the status command also checks freshness after later hooks run.
 
 The output directory must be a separate directory within the project. Root,
 outside, `.quarto`, `.git`, `_extensions`, linked files/directories and linked
-report destinations are refused. Limits: 5,000 files, 128 MiB total, 32 MiB per
-file, 8 MiB per HTML page, 5,000 directories and depth 64. Generated report JSON
+report destinations are refused. Ordinary limits: 5,000 files, 128 MiB total,
+32 MiB per file, 8 MiB per HTML page, 5,000 directories and depth 64. Generated report JSON
 must also fit the 8 MiB state-reader limit; excessive findings stop publication
 without truncating findings or marking an unreadable generation complete.
 Native configuration inspection has a 30-second deadline and a 16 MiB limit on
 each captured output stream. UTF-8 HTML is required. This assumes a trusted local
 build tree and no concurrent writers; it is not an OS filesystem sandbox.
+
+### Publishing large local AI assets
+
+After explicitly preparing and selecting a public Local AI Websites pack, add
+its manifest path relative to the project and output root:
+
+```yaml
+content-security-protocol:
+  enabled: true
+  prepared-model-packs:
+    - local-ai-assets/models.json
+```
+
+The report describes each selected pack's WASM compilation capability using
+exact manifest, receipt and final-file hashes. It separately records whether
+`script-src` declares `'wasm-unsafe-eval'`; execution and delivered policy remain
+untested. Recognized inert Local AI manifest references are checked against the
+retained output and explicitly selected packs. Missing, malformed or unsupported
+references produce bounded findings without echoing rejected marker values.
+
+`wasm-compilation-permission-not-declared` and the prepared-pack reference
+findings are compatibility gaps requiring review, rather than proof of a
+security flaw. You may deliberately deny model execution. A header-workflow
+acknowledgement binds that decision to an exact inventory; it does not grant a
+permission. Read the normal `report` output after rendering; no author JavaScript
+or extra manifest declaration is required.
+
+The sibling `asset-receipt.json` must identify exactly the same runtime/model
+paths, sizes and SHA-256 hashes as that manifest. Only its listed `wasm/*.wasm`
+and `models/*.litertlm` binaries use the separate adapter budget: 128 MiB per
+WASM binary, 4 GiB per model and 8 GiB total binaries across at most eight packs.
+All files still count towards the 5,000-file inventory. JavaScript, JSON, HTML,
+notices and unrelated siblings keep the ordinary file and aggregate limits.
+Missing files, modified hashes, duplicate resources, hidden/traversing paths
+and inconsistent receipts are refused. Unlisted large files are not exempt.
+
+The adapter reads model/WASM files in at most 1 MiB chunks instead of retaining
+whole files. It hashes every byte during both output scans and freshness checks.
+Configured forbidden markers are decoded and scanned across chunk boundaries;
+selecting a pack does not waive publication checks. Optional accessibility
+checking streams those exact assets into its private static copy and verifies
+that copy before running the native scanner. It does not consent to model
+downloads or execute inference on the reader's behalf.
+
+This verifies consistency with the author-selected prepared receipt. It does
+not establish executable safety, complete transitive package integrity, model
+quality or permission to redistribute the assets. Model publication and the
+reader's separate model-download consent remain explicit decisions. Large
+packs add full-file hashing time and optional accessibility-copy disk space;
+there is no timestamp shortcut or persistent audit cache.
+
+A clean non-HTML-only render may omit the browser pack entirely. If both its
+manifest and receipt are absent, the report records an unpublished pack and
+retains the incomplete-no-HTML assessment. Every remaining file still receives
+ordinary hashing, publication checks and limits; no missing-pair exemption
+applies to leftover binaries. A lone manifest/receipt, or missing pack metadata
+alongside any retained HTML page, is an error. Complete retained packs still
+undergo the usual exact checks even during a non-HTML render.
 
 Tested target: Windows, Quarto **1.11.5 prerelease**, HTML website/book/manuscript
 projects and installed-only operation. Native DOCX projects receive asset
@@ -193,7 +340,7 @@ A manifest constraint is not evidence for all accepted later versions.
 
 ## Hosting and accessibility
 
-Prepare a private Netlify candidate without installing or deploying it:
+Prepare a private Netlify candidate without installing or deploying it (the default remains Netlify):
 
 ```sh
 quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts headers
@@ -205,6 +352,30 @@ The default is report-only. The artifact is
 reconciliation. Only bounded ASCII static routes/index aliases are supported;
 functions, proxies, rewrites, custom 404 fallback and actual Netlify delivery are
 outside this adapter's verification. Header-only controls remain header-only.
+
+For a Cloudflare Pages static site, select the separate adapter explicitly:
+
+```sh
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts headers --adapter cloudflare-pages
+```
+
+This writes `.quarto/content-security-protocol/headers-cloudflare-pages.txt`.
+It emits one uniform `/*` rule for static responses, including native aliases
+and fallback paths. The complete header line must fit Cloudflare Pages' 2,000
+character limit; the extension refuses an oversized policy without truncation.
+The one rule stays within the documented 100-rule limit. Literal ASCII inventory
+paths remain bounded. Existing Functions, Worker, routing, Wrangler, redirects
+or competing header configuration require separate manual integration and are
+refused. See the official [headers documentation](https://developers.cloudflare.com/pages/configuration/headers/)
+and [serving rules](https://developers.cloudflare.com/pages/configuration/serving-pages/).
+
+Adapter selection belongs to this explicit command. It adds no project YAML
+mode, automatic `_headers` copy, report endpoint or deployment. Both adapters
+use the same declared policy and current audit/review gate. Header-only controls
+stay header-only. A private artifact does not deliver a policy: separately review
+its exact text, installation, host configuration, redirects and actual responses
+before choosing to deploy. Hosted Netlify/Cloudflare delivery remains unverified;
+local response tests do not establish host conformance or security.
 
 `headers --mode enforce` refuses known violations and unapproved hashes/resources.
 Named uncertainty acknowledgements require `--review review.json` containing
@@ -227,12 +398,107 @@ Quarto can use `QUARTO_CHROMIUM` to select one; ordinary audit does not need a
 browser. The command scans a private hash-bound copy at desktop/narrow viewports
 and discovered light/dark modes. It executes page JavaScript, which may access
 external resources; it is not a network sandbox. Raw cells/logs remain private.
+Native diagnostics are captured with a byte limit rather than silenced, so
+browser-startup failures can be investigated privately. The public-facing
+summary remains sanitized and an incomplete scan never becomes a pass.
 The native scanner reports violations only, omitting uncertain/pass checks.
 The adapter therefore always records `native-uncertain-checks-not-reported` as
 needs review; zero violations never becomes a conformance pass. Exit 1 means
 violations, 2 incomplete, 3 needs review. WCAG 2.2 AA tags are classified separately
 from other native rules. Keyboard/screen-reader/math speech, dynamic states and
 Word/PDF accessibility still require their own evaluation.
+
+### Optional browser states from YAML
+
+Use this separate workflow when you want automated checks after specific native
+interactions. The existing `accessibility` command above retains its pinned
+Quarto scanner and its violation-only uncertainty warning. Neither command runs
+during ordinary rendering.
+
+Add a profile to the same project-level mapping, then render normally:
+
+```yaml
+content-security-protocol:
+  enabled: true
+  interaction-profiles:
+    - id: example-details
+      version: 1
+      pages:
+        - path: example.html
+          states:
+            - id: opened
+              actions:
+                - click:
+                    selector: "#audit-details .callout-header"
+              ready:
+                selector: "#audit-details .callout-body-container"
+                state: visible
+```
+
+This matches the native collapsible callout in `example.qmd`. For your own QMD,
+assign a stable native ID and select the actual controls in its rendered HTML.
+Use actual output HTML paths, including any custom `output-file`; QMD paths,
+queries, fragments, external URLs and private/extension paths are refused. The
+profile declares tests; it grants no CSP permission and does not assert that an
+interaction improves accessibility.
+
+The explicit command requires an installed Chromium browser, a local pinned axe
+script and an ordinary private workspace directory. This adapter pins axe
+**4.10.3**, **553446 bytes**, SHA-256
+`880970c081707360e64f34cea25ff91892f5bc95675b0776925b9709dd8a68bb`.
+The tested Quarto 1.11.5 distribution contains it at
+`C:/Program Files/Quarto/share/formats/html/axe/axe.min.js`; installation paths
+vary. A different file refuses before browser execution. Supply absolute paths;
+there is no tool, model or rule-library download:
+
+```powershell
+quarto run _extensions/kai-prince-sfhea/content-security-protocol/cli.ts accessibility-browser --execute-pages --interaction-profile example-details --browser "C:/path/to/msedge.exe" --axe "C:/Program Files/Quarto/share/formats/html/axe/axe.min.js" --workspace "D:/private-audit-workspace"
+```
+
+Those are host paths, not project YAML or website resources. As elsewhere, omit
+the owner directory after a local-checkout installation. Keep test values
+fictional/public; the profile and raw diagnostics stay private. Run the same
+Quarto project profile used for the current audit. Changed output, sources,
+effective configuration or installed audit code require a new audit before
+execution; the command cannot turn stale results into a current receipt.
+
+Each declared page includes an initial check. Every named state starts from a
+fresh isolated browser context; its actions are ordered within that state.
+States do not depend on earlier named states. The browser receives the unchanged
+private output copy. Light/dark `colorSchemes` emulate the media preference;
+they do not operate or certify a site's native theme switcher. Main-document
+selectors are test data, never author JavaScript. Actions require one suitable
+visible/enabled target; missing, ambiguous, covered or unavailable targets cannot
+be counted as a completed state. Remote requests, downloads, frame limitations
+and incomplete rule results are reported separately; the mechanism does not
+claim an operating-system network sandbox.
+
+| Profile field | Default / finite contract |
+|---|---|
+| `id`, `version`, `pages` | Required; version `1`, up to 128 unique HTML paths |
+| `pages[].states` | Optional, up to 16 unique states; `initial` is reserved |
+| `states[].actions` | Up to 16; `click: {selector}`, `fill: {selector, value}`, `select: {selector, value}`, `key: {selector, key}` |
+| `states[].ready` | Optional `{selector, state: visible\|hidden}`; a condition, not an arbitrary sleep/script |
+| `viewports` | `[{width: 1440, height: 900}, {width: 320, height: 568}]`; up to 4 unique integer sizes, width 240–4096 / height 200–4096 |
+| `colorSchemes` | `[light, dark]`; unique subset of these two preferences |
+| `timeoutMs`, `totalTimeoutMs`, `settleMs` | 30000 / 600000 / 100; bounded to 1000–30000 / up to 3600000 / 0–10000 respectively; total must cover one cell timeout |
+
+There are at most eight profiles and 512 planned page/state/viewport/scheme cells
+per profile, including initial cells. The normalized profile is limited to
+128 KiB. Selectors are trimmed text up to 512 UTF-8 bytes; literal fill/select
+values up to 2048 bytes. Keys are `Enter`, `Space`, `Tab`, `Escape`, the four
+`Arrow…` keys, `Home`, `End`, `PageUp`, `PageDown`; combinations/scripts are not
+supported. Fill/select operations use an instrumented native control path;
+they do not prove physical typing or assistive-technology behaviour.
+
+The private receipt distinguishes planned/completed/unavailable states and
+reported violations, incomplete checks, passes and inapplicable rules. Full
+rule-array coverage is separate from the old native API's omission warning.
+It binds tool/profile/output identities and records execution limits. Exit codes
+remain 1 for findings, 2 incomplete, 3 needs review; 0 means the bounded automated
+command completed, never WCAG conformance, secure hosting or human acceptance.
+The actual browser/tool combination and interactive components still need their
+own acceptance evidence.
 
 ## Comparison, review and cryptographic readiness
 
@@ -256,7 +522,7 @@ every historical generation; a subsequent audit reconstructs current state.
 authenticity, TLS, signatures and post-quantum provider readiness. It references
 ML-KEM/ML-DSA/SLH-DSA standards without implementing cryptography or claiming
 that browser code upgrades hosting TLS. Trusted Types, response-time nonces,
-dynamic native-runtime adapters, collectors, signatures and deployment remain
+broader dynamic runtime/host adapters, collectors, signatures and deployment remain
 separately scoped experiments.
 
 For a nonproject output tree use `audit --root <dir> --output-dir <subdir>
@@ -289,8 +555,9 @@ are recorded in [CHANGELOG.md](CHANGELOG.md), and breaking stored-contract chang
 require an appropriate schema identifier change. Check that record before an
 update rather than assuming every 0.x update is interchangeable.
 
-Updating from 0.0.3 to 0.0.4 changes the runtime identity, so an earlier current
-receipt becomes stale. Run a fresh `audit` with 0.0.4 and review its findings.
+Updating the installed runtime changes its identity, so an earlier current
+receipt becomes stale. Run a fresh `audit` with the current version and review
+its findings.
 Historical reports remain immutable; the extension neither rewrites nor migrates
 them automatically. Matching schema names alone do not authorize comparisons:
 `compare` also requires matching runtime/version, policy and coverage, so a

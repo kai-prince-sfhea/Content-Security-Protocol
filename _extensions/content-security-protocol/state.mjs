@@ -3,7 +3,8 @@ import {readFile,writeFile,rename,unlink,lstat,mkdir,realpath} from 'node:fs/pro
 import {join,relative,resolve,isAbsolute,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {noLinks,inside,inventory,markdown} from './audit.mjs';
-import {fileDigest,fail} from './core.mjs';
+import {fileDigest,fail,configuration} from './core.mjs';
+import {preparedPacks,streamAsset} from './prepared-packs.mjs';
 const encoder=new TextEncoder(),hash=s=>fileDigest(encoder.encode(JSON.stringify(s)));
 export const STATE='.quarto/content-security-protocol';
 export async function runtimeDigest(){return hash((await inventory(fileURLToPath(new URL('.',import.meta.url)),undefined,{retainBytes:false})).files);}
@@ -17,19 +18,22 @@ export async function markState(root,status,{create=false}={}){
 function key(root,p){const absolute=resolve(root,p),name=relative(root,absolute).split(sep).join('/');return inside(root,absolute)?name:null;}
 export async function snapshotSources(root,inspection){
   const project=await realpath(root),paths=new Set(),inputs=[];let outside=0;
+  const prepared=await preparedPacks(project,configuration(inspection.config?.['content-security-protocol'])?.preparedModelPacks??[],{allowAbsent:true});
   for(const type of ['input','config','resources','configResources'])for(const p of inspection.files?.[type]??[]){
     if(typeof p!=='string')fail('source inventory','Quarto must provide file paths');const name=key(project,p);if(!name){outside++;continue;}
     if(['.git','.quarto','_extensions'].includes(name.split('/')[0])||name===inspection.config?.project?.['output-dir']||name.startsWith((inspection.config?.project?.['output-dir']??'_site')+'/'))continue;
     paths.add(name);if(type==='input')inputs.push(name);
   }
   const files=[];for(const path of [...paths].sort()){
-    const absolute=resolve(project,path);await noLinks(project,resolve(absolute,'..'));const s=await lstat(absolute);if(!s.isFile()||s.isSymbolicLink()||s.size>32*1024*1024)fail('source inventory','requires bounded regular source files');files.push({path,sha256:await fileDigest(await readFile(absolute))});
+    const absolute=resolve(project,path);await noLinks(project,resolve(absolute,'..'));const s=await lstat(absolute),asset=prepared.assets.get(path);
+    if(asset?.binary){const streamed=await streamAsset(absolute,{maximum:asset.maximum,bytes:asset.bytes,sha256:asset.sha256});files.push({path,sha256:streamed.sha256,preparedBinary:true,bytes:asset.bytes});continue;}
+    if(!s.isFile()||s.isSymbolicLink()||s.size>32*1024*1024)fail('source inventory','requires bounded regular source files');files.push({path,sha256:await fileDigest(await readFile(absolute))});
   }
   return {schema:'quarto-declared-source-snapshot/v1',inputs:inputs.sort(),files,digest:await hash(files),effectiveConfigDigest:await hash(inspection.config),outsideEntries:outside,coverage:'quarto-declared input/config/resource files; transitive and generated dependencies unassessed'};
 }
-export async function beginRun(root,{source=null,outputDir,renderedInputs=null,kind='manual',configDigest=null}={}){
+export async function beginRun(root,{source=null,outputDir,renderedInputs=null,kind='manual',configDigest=null,kgRunId=null}={}){
   const {project,dir}=await location(root,true),output=resolve(project,outputDir);if(!inside(project,output))fail('output directory','requires a separate directory inside the project');
-  const run={schema:'content-security-protocol-run/v1',id:crypto.randomUUID(),kind,outputDir:relative(project,output).split(sep).join('/'),source,renderedInputs,configDigest};
+  const run={schema:'content-security-protocol-run/v1',id:crypto.randomUUID(),kind,outputDir:relative(project,output).split(sep).join('/'),source,renderedInputs,configDigest,...(kgRunId?{kgRunId}:{})};
   await atomic(join(dir,'status.json'),{schema:'content-security-protocol-state/v1',status:'pending',generation:run.id});await atomic(join(dir,'pending.json'),run);return run;
 }
 export async function pendingRun(root){const {dir}=await location(root);return json(join(dir,'pending.json'));}
@@ -67,11 +71,20 @@ export async function currentReport(root,{verifyOutput=true,verifySources=true}=
   for(const name of ['report.json','report.md']){const p=join(generation,name);await jsonIfRegular(p);if(await fileDigest(await readFile(p))!==receipt.hashes?.[name])fail('state','report generation hash mismatch; run a new audit');}
   const report=await json(join(generation,'report.json'));
   if(await runtimeDigest()!==receipt.runtimeDigest)return {status:'stale-runtime',current:false};
+  let preparedSource;
   if(verifySources&&receipt.source)for(const f of receipt.source.files){
     const p=resolve(project,f.path);if(!inside(project,p))fail('state','source path outside project');
-    try{await noLinks(project,resolve(p,'..'));await jsonIfRegular(p);if(await fileDigest(await readFile(p))!==f.sha256)return {status:'stale-sources',current:false};}catch(e){if(e.code==='ENOENT')return {status:'stale-sources',current:false};throw e;}
+    try{
+      await noLinks(project,resolve(p,'..'));
+      if(f.preparedBinary===true){
+        preparedSource??=await preparedPacks(project,report.scope?.preparedModelPacks??[]);
+        const asset=preparedSource.assets.get(f.path);
+        if(!asset?.binary||asset.bytes!==f.bytes||asset.sha256!==f.sha256)return {status:'stale-sources',current:false};
+        if((await streamAsset(p,{maximum:asset.maximum,bytes:f.bytes})).sha256!==f.sha256)return {status:'stale-sources',current:false};
+      }else{await jsonIfRegular(p);if(await fileDigest(await readFile(p))!==f.sha256)return {status:'stale-sources',current:false};}
+    }catch(e){if(e.code==='ENOENT')return {status:'stale-sources',current:false};throw e;}
   }
-  if(verifyOutput){const output=resolve(project,receipt.outputDir);if(!inside(project,output))fail('state','output path outside project');await noLinks(project,output);const now=await inventory(output,undefined,{retainBytes:false});if(await hash(now.files)!==receipt.inventoryDigest)return {status:'stale-output',current:false};}
+  if(verifyOutput){const output=resolve(project,receipt.outputDir);if(!inside(project,output))fail('state','output path outside project');await noLinks(project,output);const now=await inventory(output,undefined,{retainBytes:false,preparedModelPacks:report.scope?.preparedModelPacks??[]});if(await hash(now.files)!==receipt.inventoryDigest)return {status:'stale-output',current:false};}
   return {status:'current-at-snapshot',current:true,report,receipt,path:relative(project,join(generation,'report.json')).split(sep).join('/')};
 }
 async function jsonIfRegular(path){const s=await lstat(path);if(!s.isFile()||s.isSymbolicLink()||s.size>128*1024*1024)fail('state','requires bounded regular files');}

@@ -1,7 +1,7 @@
 # Generated from bootstrap.mjs by the external developer build tool.
 title: Content Security Protocol
 author: Kai Prince SFHEA
-version: 0.0.4
+version: 0.0.7
 quarto-required: ">=1.11.5"
 contributes:
   metadata:
